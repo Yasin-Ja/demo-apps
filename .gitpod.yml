@@ -1,0 +1,11 @@
+# .gitpod.yml
+tasks:
+  - init: npm install  # Run npm install to set up the project dependencies
+    command: npm start # Run the application after setup
+
+# Ports to expose publicly
+ports:
+  - port: 3000
+    onOpen: open-preview
+    visibility: public
+    label: "Application"
