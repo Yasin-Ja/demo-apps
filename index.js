@@ -41,6 +41,9 @@ app.get('/', async (req, res) => {
               <label for="clientSecret">Client Secret:</label>
               <input type="text" id="clientSecret" name="clientSecret">
 
+              <label for="clientId">Identity Provider Hint</label>
+              <input type="text" id="identityProviderHint" name="identityProviderHint">
+              
               <label for="redirectUri">Redirect URI:</label>
               <input type="text" id="redirectUri" name="redirectUri" value="http://localhost:3000/callback">
 
@@ -108,7 +111,7 @@ app.get('/', async (req, res) => {
 
 // Handle form submission to configure OIDC client
 app.post('/configure', (req, res) => {
-  const { discoveryUrl, clientId, clientSecret, redirectUri } = req.body;
+  const { discoveryUrl, clientId, clientSecret, redirectUri, identityProviderHint } = req.body; // Capture identityProviderHint
 
   Issuer.discover(discoveryUrl).then((issuer) => {
     client = new issuer.Client({
@@ -120,6 +123,8 @@ app.post('/configure', (req, res) => {
 
     req.session.clientConfigured = true;
     req.session.redirectUri = redirectUri;
+    req.session.identityProviderHint = identityProviderHint; // Save the hint to session
+
     res.redirect('/');
   }).catch((err) => {
     console.error('Error configuring OIDC client:', err);
@@ -127,12 +132,16 @@ app.post('/configure', (req, res) => {
   });
 });
 
+
 app.get('/login', (req, res) => {
   const authorizationUrl = client.authorizationUrl({
     scope: 'openid email profile',
+    kc_idp_hint: req.session.identityProviderHint || undefined,  // Pass kc_idp_hint if it exists
   });
+
   res.redirect(authorizationUrl);
 });
+
 
 app.get('/callback', (req, res) => {
   const params = client.callbackParams(req);
