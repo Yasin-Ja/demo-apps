@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { Issuer } = require('openid-client');
 const session = require('express-session');
@@ -33,19 +34,19 @@ app.get('/', async (req, res) => {
             <h2>Configure OIDC Client</h2>
             <form action="/configure" method="post">
               <label for="discoveryUrl">OIDC Discovery URL:</label>
-              <input type="text" id="discoveryUrl" name="discoveryUrl" value="https://your-oidc-provider/.well-known/openid-configuration">
+              <input type="text" id="discoveryUrl" name="discoveryUrl" value="${process.env.DISCOVERY_URL || ''}">
 
               <label for="clientId">Client ID:</label>
-              <input type="text" id="clientId" name="clientId">
+              <input type="text" id="clientId" name="clientId" value="${process.env.CLIENT_ID || ''}">
 
               <label for="clientSecret">Client Secret:</label>
-              <input type="text" id="clientSecret" name="clientSecret">
+              <input type="text" id="clientSecret" name="clientSecret" value="${process.env.CLIENT_SECRET || ''}">
 
               <label for="clientId">Identity Provider Hint</label>
-              <input type="text" id="identityProviderHint" name="identityProviderHint">
+              <input type="text" id="identityProviderHint" name="identityProviderHint" placeholder="e.g., google">
               
               <label for="redirectUri">Redirect URI:</label>
-              <input type="text" id="redirectUri" name="redirectUri" value="http://localhost:3000/callback">
+              <input type="text" id="redirectUri" name="redirectUri" value="${process.env.REDIRECT_URI || `${req.protocol}://${req.get('host')}/callback`}">
 
               <input type="submit" value="Configure OIDC Client">
             </form>
@@ -111,19 +112,23 @@ app.get('/', async (req, res) => {
 
 // Handle form submission to configure OIDC client
 app.post('/configure', (req, res) => {
-  const { discoveryUrl, clientId, clientSecret, redirectUri, identityProviderHint } = req.body; // Capture identityProviderHint
+  const discoveryUrl = req.body.discoveryUrl || process.env.DISCOVERY_URL;
+  const clientId = req.body.clientId || process.env.CLIENT_ID;
+  const clientSecret = req.body.clientSecret || process.env.CLIENT_SECRET;
+  const redirectUri = `${req.protocol}://${req.get('host')}/callback`;
+  const identityProviderHint = req.body.identityProviderHint || process.env.IDP_HINT;
 
   Issuer.discover(discoveryUrl).then((issuer) => {
     client = new issuer.Client({
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uris: [redirectUri],
+      redirect_uris: [redirectUri],  // Use the dynamically generated redirectUri
       response_types: ['code'],
     });
 
     req.session.clientConfigured = true;
     req.session.redirectUri = redirectUri;
-    req.session.identityProviderHint = identityProviderHint; // Save the hint to session
+    req.session.identityProviderHint = identityProviderHint;
 
     res.redirect('/');
   }).catch((err) => {
@@ -132,16 +137,12 @@ app.post('/configure', (req, res) => {
   });
 });
 
-
 app.get('/login', (req, res) => {
   const authorizationUrl = client.authorizationUrl({
     scope: 'openid email profile',
-    kc_idp_hint: req.session.identityProviderHint || undefined,  // Pass kc_idp_hint if it exists
   });
-
   res.redirect(authorizationUrl);
 });
-
 
 app.get('/callback', (req, res) => {
   const params = client.callbackParams(req);
