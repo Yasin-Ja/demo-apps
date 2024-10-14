@@ -42,8 +42,8 @@ app.get('/', async (req, res) => {
               <label for="clientSecret">Client Secret:</label>
               <input type="text" id="clientSecret" name="clientSecret" value="${process.env.CLIENT_SECRET || ''}">
 
-              <label for="clientId">Identity Provider Hint</label>
-              <input type="text" id="identityProviderHint" name="identityProviderHint" placeholder="e.g., google">
+              <label for="identityProviderHint">Identity Provider Hint</label>
+              <input type="text" id="identityProviderHint" name="identityProviderHint" value="${process.env.IDP_HINT || ''}">
               
               <label for="redirectUri">Redirect URI:</label>
               <input type="text" id="redirectUri" name="redirectUri" value="${process.env.REDIRECT_URI || `${req.protocol}://${req.get('host')}/callback`}">
@@ -55,7 +55,21 @@ app.get('/', async (req, res) => {
         </html>
       `);
     } else {
-      res.send('<a href="/login">Login with OIDC</a>');
+      // Improved login page with styling and a button
+      res.send(`
+        <html>
+        <head>
+          <link rel="stylesheet" href="/styles.css">
+        </head>
+        <body>
+          <div class="container">
+            <h2>Login with OpenID Connect</h2>
+            <p>Please click the button below to log in via OIDC:</p>
+            <a href="/login" class="button">Login with OIDC</a>
+          </div>
+        </body>
+        </html>
+      `);
     }
   } else {
     const idToken = req.session.tokenSet.id_token;
@@ -139,6 +153,7 @@ app.post('/configure', (req, res) => {
 
 app.get('/login', (req, res) => {
   const authorizationUrl = client.authorizationUrl({
+    kc_idp_hint: req.session.identityProviderHint || undefined,  // Use the stored identity provider hint
     scope: 'openid email profile',
   });
   res.redirect(authorizationUrl);
@@ -159,7 +174,7 @@ app.get('/logout', (req, res) => {
   if (client) {
     const endSessionUrl = client.endSessionUrl({
       id_token_hint: req.session.tokenSet.id_token,
-      post_logout_redirect_uri: 'http://localhost:3000',
+      post_logout_redirect_uri: `${req.protocol}://${req.get('host')}`,
     });
 
     req.session.destroy(() => {
